@@ -9,11 +9,12 @@ from agents.extensions.handoff_prompt import prompt_with_handoff_instructions
 from openai import OpenAI
 import os
 from PyPDF2 import PdfReader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from agents import Runner, trace
+import asyncio
 
 
 OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
-set_default_openai_key("OPENAI_API_KEY")
+set_default_openai_key(OPENAI_API_KEY)
 
 # --- Agent: Search Agent ---
 search_agent = Agent(
@@ -66,7 +67,7 @@ knowledge_agent = Agent(
     ),
     tools=[FileSearchTool(
             max_num_results=3,
-            vector_store_ids=[vector_store_detail],
+            vector_store_ids=[vector_store_detail["id"]],
         ),],
 )
 
@@ -103,32 +104,21 @@ Based on the user's intent, route to:
     handoffs=[account_agent, knowledge_agent, search_agent],
 )
 
-async def test_queries():
+def test_queries():
     examples = [
         "What's my ACME account balance doc? My user ID is 1234567890", # Account Agent test
-        "Ooh i've got money to spend! How big is the input and how fast is the output of the dynamite dispenser?", # Knowledge Agent test
+        "Ooh i've got money to spend! Give me the details on JOBSITE TABLE SAW WITH FOLDABLE ROLLING STAND", # Knowledge Agent test
         "Hmmm, what about duck hunting gear - what's trending right now?", # Search Agent test
 
     ]
     with trace("ACME App Assistant"):
         for query in examples:
-            result = await Runner.run(triage_agent, query)
-            print(f"User: {query}")
-            print(result.final_output)
-            print("---")
+            result = asyncio.run(Runner.run(triage_agent, query))
+            st.write(f"User: {query}")
+            st.write(result.final_output) 
+            st.write("---")
 
-def get_pdf_text(pdf_docs):
-    text = ""
-    for pdf_doc in pdf_docs:
-        pdf = PdfReader(pdf_doc)
-        for page in pdf.pages:
-            text += page.extract_text()
-    return text
 
-def get_text_chunks(text):
-    splitter = RecursiveCharacterTextSplitter(chunk_size=5000, chunk_overlap=1000)
-    chunks = splitter.split_text(text)
-    return chunks 
 
 def main():
     st.header("Build vector store and upload files")
@@ -144,6 +134,15 @@ def main():
                 upload_file(save_path, vector_store_detail["id"])
                 st.success("Vector store processed successfully")
 
+        st.header("Let the agents do the work")
+        st.markdown(
+            """ 
+            ### Test the agents with some example queries:
+            - "What's my ACME account balance doc? My user ID is 1234567890"
+            - "Ooh I've got money to spend! Give me the details on JOBSITE TABLE SAW WITH FOLDABLE ROLLING STAND"
+            - "Hmmm, what about duck hunting gear - what's trending right now?"
+            """
+        )
         test_queries()
 
 if __name__ == "__main__":
