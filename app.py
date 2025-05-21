@@ -108,12 +108,16 @@ Based on the user's intent, route to:
 )
 
 async def test_queries():
+
+
     examples = [
         "What's my ACME account balance doc? My user ID is 1234567890", # Account Agent test
         "Tell me about Charles", # Knowledge Agent test
         "Hmmm, what about duck hunting gear - what's trending right now?", # Search Agent test
 
     ]
+    st.write("---")
+    st.header("Different agents handling different queries")
     with trace("Maste Agent App Assistant"):
         for query in examples:
             result = await Runner.run(triage_agent, query)
@@ -182,6 +186,13 @@ async def main():
                 st.success("Vector store processed successfully")
 
         st.header("Let the agents do the work")
+        st.markdown("""
+            You are the virtual assistant Welcome the user and ask how you can help. 
+            Based on the user's intent, route to:
+            - AccountAgent for account-related queries
+            - KnowledgeAgent for questions about Charles
+            - SearchAgent for anything requiring real-time web search""")
+
         st.markdown(
             """ 
             ### Test the agents with some example queries:
