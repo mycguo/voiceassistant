@@ -1,7 +1,6 @@
 openai
 openai_agents
 numpy
-sounddevice
 streamlit
 PyPDF2
 langchain

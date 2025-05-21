@@ -13,8 +13,6 @@ from agents import Runner, trace
 import asyncio
 
 import numpy as np
-#import sounddevice as sd
-from agents.voice import AudioInput, SingleAgentVoiceWorkflow, VoicePipeline
 
 OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
 set_default_openai_key(OPENAI_API_KEY)
