@@ -12,6 +12,9 @@ from PyPDF2 import PdfReader
 from agents import Runner, trace
 import asyncio
 
+import numpy as np
+import sounddevice as sd
+from agents.voice import AudioInput, SingleAgentVoiceWorkflow, VoicePipeline
 
 OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
 set_default_openai_key(OPENAI_API_KEY)
@@ -95,32 +98,76 @@ account_agent = Agent(
 triage_agent = Agent(
     name="Assistant",
     instructions=prompt_with_handoff_instructions("""
-You are the virtual assistant for Acme Shop. Welcome the user and ask how you can help.
+You are the virtual assistant Welcome the user and ask how you can help.
 Based on the user's intent, route to:
 - AccountAgent for account-related queries
-- KnowledgeAgent for product FAQs
+- KnowledgeAgent for questions about Charles
 - SearchAgent for anything requiring real-time web search
 """),
     handoffs=[account_agent, knowledge_agent, search_agent],
 )
 
-def test_queries():
+async def test_queries():
     examples = [
         "What's my ACME account balance doc? My user ID is 1234567890", # Account Agent test
-        "Ooh i've got money to spend! Give me the details on JOBSITE TABLE SAW WITH FOLDABLE ROLLING STAND", # Knowledge Agent test
+        "Tell me about Charles", # Knowledge Agent test
         "Hmmm, what about duck hunting gear - what's trending right now?", # Search Agent test
 
     ]
-    with trace("ACME App Assistant"):
+    with trace("Maste Agent App Assistant"):
         for query in examples:
-            result = asyncio.run(Runner.run(triage_agent, query))
+            result = await Runner.run(triage_agent, query)
             st.write(f"User: {query}")
-            st.write(result.final_output) 
+            st.write(f"Agent: {result.final_output}") 
             st.write("---")
 
+async def voice_assistant():
+    samplerate = sd.query_devices(kind='input')['default_samplerate']
+
+    with st.spinner("Initializing voice assistant..."):
+        pipeline = VoicePipeline(workflow=SingleAgentVoiceWorkflow(triage_agent))
+
+        # Check for input to either provide voice or exit
+        cmd = st.text_input("Press Enter to speak your query (or type 'esc' to exit): ", key="input for audio")
+        if cmd.lower() == "esc":
+            st.write("Exiting...")
+            return
+        else:
+            st.write("Listening...")
+
+            st.title("Record Audio Locally")
+
+            # Record audio
+            duration = st.slider("Select recording duration (seconds)", 1, 10, 5)
+            if st.button("Start Recording"):
+                st.write("Recording...")
+                samplerate = 44100  # Sample rate
+                recording = sd.rec(int(duration * samplerate), samplerate=samplerate, channels=1, dtype='int16')
+                sd.wait()  # Wait until recording is finished
+                st.success("Recording finished!")
+
+                # Input the buffer and await the result
+                audio_input = AudioInput(buffer=recording)
+
+                with trace("ACME App Voice Assistant"):
+                    result = pipeline.run(audio_input)
+
+                # Transfer the streamed result into chunks of audio
+                response_chunks = []
+                async for event in result.stream():
+                    if event.type == "voice_stream_event_audio":
+                        response_chunks.append(event.data)
+
+                response_audio = np.concatenate(response_chunks, axis=0)
+
+                # Play response
+                st.write("Assistant is responding...")
+                sd.play(response_audio, samplerate=samplerate)
+                sd.wait()
+                print("---")
 
 
-def main():
+async def main():
     st.header("Build vector store and upload files")
     pdf_docs = st.file_uploader("Upload your knowledge base document", type=["pdf"], accept_multiple_files=False)
     if st.button("Submit & Process"):
@@ -139,11 +186,21 @@ def main():
             """ 
             ### Test the agents with some example queries:
             - "What's my ACME account balance doc? My user ID is 1234567890"
-            - "Ooh I've got money to spend! Give me the details on JOBSITE TABLE SAW WITH FOLDABLE ROLLING STAND"
+            - "Tell me about Charles"
             - "Hmmm, what about duck hunting gear - what's trending right now?"
             """
         )
-        test_queries()
+        await test_queries()
+
+        st.header("Voice Assistant")
+        st.markdown(
+            """
+            ### Speak your query to the assistant:
+            - Press Enter to start listening
+            - Type 'esc' to exit
+            """
+        )
+        await voice_assistant()
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
