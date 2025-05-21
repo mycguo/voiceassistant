@@ -13,7 +13,7 @@ from agents import Runner, trace
 import asyncio
 
 import numpy as np
-import sounddevice as sd
+#import sounddevice as sd
 from agents.voice import AudioInput, SingleAgentVoiceWorkflow, VoicePipeline
 
 OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
@@ -59,7 +59,7 @@ def create_vector_store(store_name: str) -> dict:
         print(f"Error creating vector store: {e}")
         return {}
     
-vector_store_detail = create_vector_store("ACME Shop Product Knowledge Base")
+vector_store_detail = create_vector_store("Everything about Charles")
 
 
 # --- Agent: Knowledge Agent ---
@@ -125,51 +125,6 @@ async def test_queries():
             st.write(f"Agent: {result.final_output}") 
             st.write("---")
 
-async def voice_assistant():
-    samplerate = sd.query_devices(kind='input')['default_samplerate']
-
-    with st.spinner("Initializing voice assistant..."):
-        pipeline = VoicePipeline(workflow=SingleAgentVoiceWorkflow(triage_agent))
-
-        # Check for input to either provide voice or exit
-        cmd = st.text_input("Press Enter to speak your query (or type 'esc' to exit): ", key="input for audio")
-        if cmd.lower() == "esc":
-            st.write("Exiting...")
-            return
-        else:
-            st.write("Listening...")
-
-            st.title("Record Audio Locally")
-
-            # Record audio
-            duration = st.slider("Select recording duration (seconds)", 1, 10, 5)
-            if st.button("Start Recording"):
-                st.write("Recording...")
-                samplerate = 44100  # Sample rate
-                recording = sd.rec(int(duration * samplerate), samplerate=samplerate, channels=1, dtype='int16')
-                sd.wait()  # Wait until recording is finished
-                st.success("Recording finished!")
-
-                # Input the buffer and await the result
-                audio_input = AudioInput(buffer=recording)
-
-                with trace("ACME App Voice Assistant"):
-                    result = pipeline.run(audio_input)
-
-                # Transfer the streamed result into chunks of audio
-                response_chunks = []
-                async for event in result.stream():
-                    if event.type == "voice_stream_event_audio":
-                        response_chunks.append(event.data)
-
-                response_audio = np.concatenate(response_chunks, axis=0)
-
-                # Play response
-                st.write("Assistant is responding...")
-                sd.play(response_audio, samplerate=samplerate)
-                sd.wait()
-                print("---")
-
 
 async def main():
     st.header("Build vector store and upload files")
@@ -202,16 +157,6 @@ async def main():
             """
         )
         await test_queries()
-
-        st.header("Voice Assistant")
-        st.markdown(
-            """
-            ### Speak your query to the assistant:
-            - Press Enter to start listening
-            - Type 'esc' to exit
-            """
-        )
-        await voice_assistant()
 
 if __name__ == "__main__":
     asyncio.run(main())
