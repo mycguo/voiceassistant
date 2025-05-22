@@ -96,7 +96,7 @@ account_agent = Agent(
 triage_agent = Agent(
     name="Assistant",
     instructions=prompt_with_handoff_instructions("""
-You are the virtual assistant Welcome the user and ask how you can help.
+You are the virtual assistant which routes the user's query to the appropriate agent based on the user's intent.
 Based on the user's intent, route to:
 - AccountAgent for account-related queries
 - KnowledgeAgent for questions about Charles
